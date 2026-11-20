@@ -1,3 +1,4 @@
+
 import streamlit as st
 from datetime import datetime
 
@@ -6,6 +7,10 @@ from services.issue_service import (
     get_all_issues,
     get_issue_by_id
 )
+
+# =========================================================
+# PAGE CONFIGURATION
+# =========================================================
 
 st.set_page_config(
     page_title="CivicLens | Smart City",
@@ -18,9 +23,14 @@ CURRENT_USER_ID = 1
 if "page" not in st.session_state:
     st.session_state.page = "Dashboard"
 
+
+# =========================================================
+# CUSTOM CSS
+# =========================================================
+
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;600;700&family=Outfit:wght@400;600;700&family=Roboto+Mono:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;600;700&display=swap');
 
 .stApp {
     background: #101827;
@@ -104,6 +114,10 @@ div[data-testid="stExpander"] {
 """, unsafe_allow_html=True)
 
 
+# =========================================================
+# ISSUE NORMALIZATION
+# =========================================================
+
 def normalize_issue(issue):
 
     if isinstance(issue, dict):
@@ -144,6 +158,10 @@ def normalize_issue(issue):
     }
 
 
+# =========================================================
+# SAFE VALUE ACCESS
+# =========================================================
+
 def get_value(issue, key, default=""):
 
     if not isinstance(issue, dict):
@@ -154,23 +172,69 @@ def get_value(issue, key, default=""):
     return default if value is None else value
 
 
+# =========================================================
+# LOAD ISSUES FROM DATABASE
+# =========================================================
+
 def load_issues():
 
     try:
+
         result = get_all_issues()
 
-        if result is None:
+        if not result:
             return []
 
+        # IMPORTANT:
+        # issue_service.get_all_issues() returns a dictionary:
+        # {
+        #   "success": True,
+        #   "total_issues": ...,
+        #   "issues": [...]
+        # }
+
+        if isinstance(result, dict):
+
+            if not result.get("success", False):
+                st.error(
+                    result.get(
+                        "message",
+                        "Unable to load issues from database."
+                    )
+                )
+                return []
+
+            issues_data = result.get("issues", [])
+
+            if not isinstance(issues_data, (list, tuple)):
+                return []
+
+            return [
+                normalize_issue(issue)
+                for issue in issues_data
+            ]
+
+        # Support direct list responses as well
+
         if isinstance(result, (list, tuple)):
-            return [normalize_issue(x) for x in result]
 
-        return [normalize_issue(result)]
+            return [
+                normalize_issue(issue)
+                for issue in result
+            ]
 
-    except Exception as error:
-        st.error(f"Database error: {error}")
         return []
 
+    except Exception as error:
+
+        st.error(f"Database error: {error}")
+
+        return []
+
+
+# =========================================================
+# DASHBOARD METRICS
+# =========================================================
 
 def calculate_metrics(issues):
 
@@ -178,29 +242,45 @@ def calculate_metrics(issues):
 
     pending = sum(
         1 for issue in issues
-        if "pending" in str(get_value(issue, "status")).lower()
+        if "pending" in str(
+            get_value(issue, "status", "")
+        ).lower()
     )
 
     assigned = sum(
         1 for issue in issues
-        if str(get_value(issue, "status")).lower() == "assigned"
+        if str(
+            get_value(issue, "status", "")
+        ).lower() == "assigned"
     )
 
     in_progress = sum(
         1 for issue in issues
-        if "progress" in str(get_value(issue, "status")).lower()
+        if "progress" in str(
+            get_value(issue, "status", "")
+        ).lower()
     )
 
     resolved = sum(
         1 for issue in issues
         if any(
-            word in str(get_value(issue, "status")).lower()
-            for word in ["resolved", "completed", "closed"]
+            word in str(
+                get_value(issue, "status", "")
+            ).lower()
+            for word in [
+                "resolved",
+                "completed",
+                "closed"
+            ]
         )
     )
 
     return total, pending, assigned, in_progress, resolved
 
+
+# =========================================================
+# DISPLAY ISSUE
+# =========================================================
 
 def display_issue(issue):
 
@@ -223,6 +303,7 @@ def display_issue(issue):
         st.markdown(f"**Status:** {status}")
 
         st.write(description)
+
         st.markdown(f"📍 **Location:** {address}")
 
         if ward:
@@ -231,12 +312,15 @@ def display_issue(issue):
         st.markdown(f"👍 **Upvotes:** {upvotes}")
 
 
-# SIDEBAR
+# =========================================================
+# SIDEBAR NAVIGATION
+# =========================================================
 
 with st.sidebar:
 
     st.markdown("# 🏙️ CivicLens")
     st.caption("SMART CITY OPERATIONS")
+
     st.divider()
 
     pages = [
@@ -262,22 +346,28 @@ with st.sidebar:
             key=f"nav_{page}",
             use_container_width=True
         ):
+
             st.session_state.page = page
             st.rerun()
 
     st.divider()
+
     st.caption("CIVIC TECHNOLOGY")
     st.caption("COMMUNITY • TRANSPARENCY • ACTION")
 
 
+# =========================================================
 # LOAD DATABASE
+# =========================================================
 
 issues = load_issues()
 
 total, pending, assigned, in_progress, resolved = calculate_metrics(issues)
 
 
+# =========================================================
 # DASHBOARD
+# =========================================================
 
 if st.session_state.page == "Dashboard":
 
@@ -303,15 +393,20 @@ if st.session_state.page == "Dashboard":
     left, right = st.columns([1.4, 1])
 
     with left:
+
         st.subheader("🛰️ City Monitoring")
+
         st.info(
             "Monitor citizen-reported issues and civic service "
             "activity from a centralized platform."
         )
 
     with right:
+
         st.subheader("⚙️ System Status")
+
         st.success("Application Active")
+
         st.write("🗄️ Database connection")
         st.write("📡 Issue monitoring")
         st.write("👥 Citizen reporting system")
@@ -321,16 +416,21 @@ if st.session_state.page == "Dashboard":
     st.subheader("🧾 Recent Civic Issues")
 
     if issues:
+
         for issue in issues[:5]:
             display_issue(issue)
+
     else:
+
         st.info("No civic issues reported yet.")
 
     if st.button("🔄 Refresh Dashboard"):
         st.rerun()
 
 
+# =========================================================
 # REPORT ISSUE
+# =========================================================
 
 elif st.session_state.page == "Report Issue":
 
@@ -355,8 +455,7 @@ elif st.session_state.page == "Report Issue":
                 "Water",
                 "Electricity",
                 "Sanitation",
-                "Public Spaces",
-                "Other"
+                "Public Spaces"
             ]
         )
 
@@ -369,12 +468,14 @@ elif st.session_state.page == "Report Issue":
         col1, col2 = st.columns(2)
 
         with col1:
+
             severity = st.selectbox(
                 "Severity",
                 ["Low", "Medium", "High", "Critical"]
             )
 
         with col2:
+
             ward_zone = st.text_input("Ward / Zone")
 
         address = st.text_input(
@@ -385,6 +486,7 @@ elif st.session_state.page == "Report Issue":
         col1, col2 = st.columns(2)
 
         with col1:
+
             latitude = st.number_input(
                 "Latitude (optional)",
                 value=0.0,
@@ -392,6 +494,7 @@ elif st.session_state.page == "Report Issue":
             )
 
         with col2:
+
             longitude = st.number_input(
                 "Longitude (optional)",
                 value=0.0,
@@ -403,41 +506,73 @@ elif st.session_state.page == "Report Issue":
             use_container_width=True
         )
 
-        if submit:
+    if submit:
 
-            if not title.strip():
-                st.error("Please enter an issue title.")
+        if not title.strip():
 
-            elif not description.strip():
-                st.error("Please enter a description.")
+            st.error("Please enter an issue title.")
 
-            else:
+        elif not description.strip():
 
-                try:
+            st.error("Please enter a description.")
 
-                    result = create_issue(
-                        user_id=CURRENT_USER_ID,
-                        title=title.strip(),
-                        category=category,
-                        description=description.strip(),
-                        latitude=latitude if latitude != 0 else None,
-                        longitude=longitude if longitude != 0 else None,
-                        address=address.strip() or None,
-                        ward_zone=ward_zone.strip() or None,
-                        severity=severity
+        else:
+
+            try:
+
+                result = create_issue(
+                    user_id=CURRENT_USER_ID,
+                    title=title.strip(),
+                    category=category,
+                    description=description.strip(),
+                    latitude=latitude if latitude != 0 else None,
+                    longitude=longitude if longitude != 0 else None,
+                    address=address.strip() or None,
+                    ward_zone=ward_zone.strip() or None,
+                    severity=severity
+                )
+
+                # Check the actual service result
+
+                if isinstance(result, dict) and result.get("success"):
+
+                    st.success(
+                        "✅ Issue reported successfully!"
                     )
 
-                    st.success("✅ Issue reported successfully!")
+                    st.markdown(
+                        f"### 🎫 Issue ID: #{result.get('issue_id', 'N/A')}"
+                    )
+
+                    st.markdown(
+                        f"**Status:** {result.get('status', 'Pending Review')}"
+                    )
+
                     st.balloons()
 
-                    if result is not None:
-                        st.write("Submission result:", result)
+                elif isinstance(result, dict):
 
-                except Exception as error:
-                    st.error(f"Unable to submit issue: {error}")
+                    st.error(
+                        result.get(
+                            "message",
+                            "Issue could not be submitted."
+                        )
+                    )
+
+                else:
+
+                    st.error(
+                        "Unexpected response received while submitting the issue."
+                    )
+
+            except Exception as error:
+
+                st.error(f"Unable to submit issue: {error}")
 
 
+# =========================================================
 # EXPLORE ISSUES
+# =========================================================
 
 elif st.session_state.page == "Explore Issues":
 
@@ -456,6 +591,7 @@ elif st.session_state.page == "Explore Issues":
     col1, col2 = st.columns(2)
 
     with col1:
+
         status_filter = st.selectbox(
             "Status",
             [
@@ -463,11 +599,13 @@ elif st.session_state.page == "Explore Issues":
                 "Pending Review",
                 "Assigned",
                 "In Progress",
-                "Resolved"
+                "Resolved",
+                "Reopened"
             ]
         )
 
     with col2:
+
         category_filter = st.selectbox(
             "Category",
             [
@@ -476,8 +614,7 @@ elif st.session_state.page == "Explore Issues":
                 "Water",
                 "Electricity",
                 "Sanitation",
-                "Public Spaces",
-                "Other"
+                "Public Spaces"
             ]
         )
 
@@ -491,7 +628,9 @@ elif st.session_state.page == "Explore Issues":
         category = str(get_value(issue, "category", ""))
         status = str(get_value(issue, "status", ""))
 
-        searchable = f"{title} {description} {address} {category}".lower()
+        searchable = (
+            f"{title} {description} {address} {category}"
+        ).lower()
 
         search_match = (
             not search.strip()
@@ -509,18 +648,27 @@ elif st.session_state.page == "Explore Issues":
         )
 
         if search_match and status_match and category_match:
+
             filtered.append(issue)
 
     st.markdown(f"### 📋 {len(filtered)} Issues Found")
 
     if filtered:
+
         for issue in filtered:
             display_issue(issue)
+
     else:
+
         st.info("No issues match your filters.")
 
+    if st.button("🔄 Refresh Issues"):
+        st.rerun()
 
+
+# =========================================================
 # TRACK COMPLAINTS
+# =========================================================
 
 elif st.session_state.page == "Track Complaints":
 
@@ -544,38 +692,86 @@ elif st.session_state.page == "Track Complaints":
 
             result = get_issue_by_id(int(issue_id))
 
-            if result:
+            # get_issue_by_id returns a wrapper dictionary:
+            # {
+            #     "success": True,
+            #     "issue": {...}
+            # }
 
-                issue = normalize_issue(result)
+            if isinstance(result, dict) and result.get("success"):
+
+                issue_data = result.get("issue", {})
+
+                issue = normalize_issue(issue_data)
 
                 st.success("Issue found!")
+
                 display_issue(issue)
 
-                status = str(get_value(issue, "status", "Unknown")).lower()
+                status = str(
+                    get_value(issue, "status", "Unknown")
+                ).lower()
 
                 if "pending" in status:
-                    st.warning("⏳ Complaint awaiting review.")
+
+                    st.warning(
+                        "⏳ Complaint awaiting review."
+                    )
 
                 elif "assign" in status:
-                    st.info("👷 Complaint has been assigned.")
+
+                    st.info(
+                        "👷 Complaint has been assigned."
+                    )
 
                 elif "progress" in status:
-                    st.info("🔧 Work is in progress.")
 
-                elif any(x in status for x in ["resolved", "completed", "closed"]):
-                    st.success("✅ Complaint resolved.")
+                    st.info(
+                        "🔧 Work is in progress."
+                    )
+
+                elif any(
+                    x in status
+                    for x in [
+                        "resolved",
+                        "completed",
+                        "closed"
+                    ]
+                ):
+
+                    st.success(
+                        "✅ Complaint resolved."
+                    )
 
                 else:
-                    st.info(f"Current status: {status}")
+
+                    st.info(
+                        f"Current status: {status}"
+                    )
+
+            elif isinstance(result, dict):
+
+                st.error(
+                    result.get(
+                        "message",
+                        "Issue not found. Check the Issue ID."
+                    )
+                )
 
             else:
-                st.error("Issue not found. Check the Issue ID.")
+
+                st.error(
+                    "Issue not found. Check the Issue ID."
+                )
 
         except Exception as error:
+
             st.error(f"Tracking failed: {error}")
 
 
+# =========================================================
 # ABOUT CIVICLENS
+# =========================================================
 
 elif st.session_state.page == "About CivicLens":
 
@@ -607,6 +803,7 @@ elif st.session_state.page == "About CivicLens":
     ]
 
     for objective in objectives:
+
         st.markdown(f"✔️ {objective}")
 
     st.subheader("🛠️ Technology Stack")
@@ -618,7 +815,9 @@ elif st.session_state.page == "About CivicLens":
     st.write("🔐 Authentication and password hashing")
 
 
+# =========================================================
 # FOOTER
+# =========================================================
 
 st.markdown("""
 <div class="footer">
