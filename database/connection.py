@@ -1,75 +1,37 @@
 
-import os
-from pathlib import Path
+from database.connection import engine, Base
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+# Import all models so SQLAlchemy registers the tables
+from database.models import User, Issue, Media, StatusLog, Vote
 
-# --------------------------------------------------
-# PROJECT PATH
-# --------------------------------------------------
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-DATABASE_DIR = BASE_DIR / "database"
-DATABASE_DIR.mkdir(exist_ok=True)
-
-DATABASE_PATH = DATABASE_DIR / "civiclens.db"
-
-# --------------------------------------------------
-# DATABASE URL
-# --------------------------------------------------
-
-DATABASE_URL = f"sqlite:///{DATABASE_PATH.as_posix()}"
-
-# --------------------------------------------------
-# SQLALCHEMY CONFIGURATION
-# --------------------------------------------------
-
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    echo=False
-)
-
-SessionLocal = sessionmaker(
-    bind=engine,
-    autoflush=False,
-    autocommit=False
-)
-
-Base = declarative_base()
-
-
-# --------------------------------------------------
-# DATABASE SESSION
-# --------------------------------------------------
-
-def get_db():
-    db = SessionLocal()
+def initialize_database():
+    print("Initializing CivicLens database...")
 
     try:
-        yield db
-    finally:
-        db.close()
+        Base.metadata.create_all(bind=engine)
+
+        from sqlalchemy import inspect
+
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+
+        print("\nDatabase initialization completed!")
+        print("Tables created/found:")
+
+        for table in tables:
+            print(f"  [OK] {table}")
+
+        if tables:
+            print("\nCivicLens database is ready!")
+        else:
+            print("\nWARNING: No tables were created.")
+
+    except Exception as e:
+        import traceback
+        print("\nDatabase initialization failed!")
+        print(f"Error: {e}")
+        traceback.print_exc()
 
 
-# --------------------------------------------------
-# CONNECTION TEST
-# --------------------------------------------------
-
-def test_connection():
-    try:
-        with engine.connect() as connection:
-            connection.exec_driver_sql("SELECT 1")
-
-        print("✅ CivicLens database connection successful!")
-        print(f"📁 Database location: {DATABASE_PATH}")
-
-        return True
-
-    except Exception as error:
-        print("❌ Database connection failed!")
-        print(f"Error: {error}")
-
-        return False
+if __name__ == "__main__":
+    initialize_database()
