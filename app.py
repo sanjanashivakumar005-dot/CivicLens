@@ -1,6 +1,7 @@
-
 import streamlit as st
 from datetime import datetime
+
+from database.init_db import initialize_database
 
 from services.issue_service import (
     create_issue,
@@ -354,6 +355,23 @@ with st.sidebar:
 
     st.caption("CIVIC TECHNOLOGY")
     st.caption("COMMUNITY • TRANSPARENCY • ACTION")
+
+
+# =========================================================
+# DATABASE INITIALIZATION
+# =========================================================
+
+@st.cache_resource
+def setup_database():
+    initialize_database()
+    return True
+
+
+try:
+    setup_database()
+except Exception as error:
+    st.error(f"Database initialization failed: {error}")
+    st.stop()
 
 
 # =========================================================
