@@ -41,27 +41,55 @@ def create_issue(
 ):
     db = SessionLocal()
 
-    try:
-        user = db.query(User).filter(User.user_id == user_id).first()
+   try:
+    user = db.query(User).filter(User.user_id == user_id).first()
 
-        if not user:
-            return {"success": False, "message": "User not found"}
+    if not user:
+        return {"success": False, "message": "User not found"}
 
-        if not user.is_active:
-            return {"success": False, "message": "User account is inactive"}
+    if not user.is_active:
+        return {"success": False, "message": "User account is inactive"}
 
-        if category not in VALID_CATEGORIES:
-            return {"success": False, "message": "Invalid issue category"}
+    if category not in VALID_CATEGORIES:
+        return {"success": False, "message": "Invalid issue category"}
 
-        if severity not in VALID_SEVERITIES:
-            return {"success": False, "message": "Invalid severity level"}
+    if severity not in VALID_SEVERITIES:
+        return {"success": False, "message": "Invalid severity level"}
 
-        if not title or not title.strip():
-            return {"success": False, "message": "Issue title is required"}
+    if not title or not title.strip():
+        return {"success": False, "message": "Issue title is required"}
 
-        if not description or not description.strip():
-            return {"success": False, "message": "Description is required"}
+    if not description or not description.strip():
+        return {"success": False, "message": "Description is required"}try:
+    # Validate issue information
+    if category not in VALID_CATEGORIES:
+        return {"success": False, "message": "Invalid issue category"}
 
+    if severity not in VALID_SEVERITIES:
+        return {"success": False, "message": "Invalid severity level"}
+
+    if not title or not title.strip():
+        return {"success": False, "message": "Issue title is required"}
+
+    if not description or not description.strip():
+        return {"success": False, "message": "Description is required"}
+
+    # Check whether the user exists
+    user = db.query(User).filter(User.user_id == user_id).first()
+
+    # If the user does not exist, create a default citizen account
+    if not user:
+        user = User(
+            user_id=user_id,
+            name="CivicLens Citizen",
+            role="citizen",
+            is_active=True
+        )
+        db.add(user)
+        db.flush()
+
+    elif not user.is_active:
+        return {"success": False, "message": "User account is inactive"}
         new_issue = Issue(
             user_id=user_id,
             title=title.strip(),
